@@ -52,8 +52,7 @@ def choose_topic_for_today():
     return topics[today.toordinal() % len(topics)]
 
 def generate_story_with_pollinations(topic: str) -> str:
-    """Generate a short Swedish story about ancient women's history."""
-    base_url = "https://text.pollinations.ai/"
+    """Generate a short Swedish story about ancient women's history with fallback APIs."""
     system = (
         "Du är en historiker som specialiserar sig på kvinnors historia i antika civilisationer. "
         "Skriv en kort, intressant historia på 30 sekunder (80-130 ord) på svenska. "
@@ -62,22 +61,92 @@ def generate_story_with_pollinations(topic: str) -> str:
     )
     prompt = f"Ämne: {topic}. Berätta ett intressant historiskt faktum."
 
-    url = base_url + quote(prompt)
-    params = {"model": "openai", "temperature": 1.0, "system": system}
-
     print(f"[story] Generating Swedish story for topic: {topic}")
-    r = requests.get(url, params=params, timeout=60)
-    r.raise_for_status()
-    text = r.text.strip()
+    
+    # Try Pollinations AI with retry logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            base_url = "https://text.pollinations.ai/"
+            url = base_url + quote(prompt)
+            params = {"model": "openai", "temperature": 1.0, "system": system}
+            
+            print(f"[story] Attempt {attempt + 1}/{max_retries} with Pollinations AI...")
+            r = requests.get(url, params=params, timeout=60)
+            r.raise_for_status()
+            text = r.text.strip()
+            
+            words = text.split()
+            if len(words) > STORY_MAX_WORDS:
+                text = " ".join(words[:STORY_MAX_WORDS])
 
-    words = text.split()
-    if len(words) > STORY_MAX_WORDS:
-        text = " ".join(words[:STORY_MAX_WORDS])
+            with open(STORY_FILE, "w", encoding="utf-8") as f:
+                f.write(text)
 
+            print(f"[story] Swedish story generated ({len(text.split())} words)")
+            return text
+            
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code in [502, 503, 504]:
+                wait_time = (attempt + 1) * 10  # 10, 20, 30 seconds
+                if attempt < max_retries - 1:
+                    print(f"[story] Pollinations API error {e.response.status_code}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"[story] Pollinations API failed after {max_retries} attempts. Trying fallback...")
+            else:
+                print(f"[story] HTTP error {e.response.status_code}. Trying fallback...")
+                break
+        except Exception as e:
+            print(f"[story] Error with Pollinations: {e}. Trying fallback...")
+            break
+    
+    # Fallback 1: Try Hugging Face Inference API (free, no API key needed for some models)
+    try:
+        print("[story] Trying Hugging Face fallback...")
+        hf_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+        hf_prompt = f"{system}\n\n{prompt}"
+        
+        r = requests.post(
+            hf_url,
+            headers={"Content-Type": "application/json"},
+            json={"inputs": hf_prompt, "parameters": {"max_new_tokens": 200, "temperature": 0.9}},
+            timeout=60
+        )
+        
+        if r.status_code == 200:
+            result = r.json()
+            if isinstance(result, list) and len(result) > 0:
+                text = result[0].get("generated_text", "").replace(hf_prompt, "").strip()
+            else:
+                text = result.get("generated_text", "").replace(hf_prompt, "").strip()
+            
+            words = text.split()
+            if len(words) > STORY_MAX_WORDS:
+                text = " ".join(words[:STORY_MAX_WORDS])
+            
+            with open(STORY_FILE, "w", encoding="utf-8") as f:
+                f.write(text)
+            
+            print(f"[story] Swedish story generated with Hugging Face ({len(text.split())} words)")
+            return text
+    except Exception as e:
+        print(f"[story] Hugging Face fallback failed: {e}")
+    
+    # Fallback 2: Use a simple template-based story generator
+    print("[story] Using template-based fallback generator...")
+    templates = [
+        f"I antikens {topic.lower()} spelade kvinnor en viktig roll. De var inte bara hustrur och mödrar, utan också konstnärer, läkare och affärskvinnor. Historiska dokument visar att kvinnor ägde egendom och drev företag. Deras bidrag till samhället var ovärderliga, även om de ofta glömdes bort i historieböckerna.",
+        f"Under antiken var {topic.lower()} fascinerande. Kvinnor hade rättigheter som varierade mellan olika kulturer. Vissa kunde ärva egendom, andra var begränsade av lagar. Men alla bidrog till sina samhällen på meningsfulla sätt. Deras historier förtjänar att berättas och ihågkommas.",
+        f"Historien om {topic.lower()} är full av starka kvinnor. De trotsade samhällets förväntningar och skapade sitt eget arv. Från konstnärer till krigare, från läkare till filosofer - kvinnor formade civilisationer. Deras mod och visdom inspirerar oss än idag.",
+    ]
+    
+    text = random.choice(templates)
+    
     with open(STORY_FILE, "w", encoding="utf-8") as f:
         f.write(text)
-
-    print(f"[story] Swedish story generated ({len(text.split())} words)")
+    
+    print(f"[story] Template-based story generated ({len(text.split())} words)")
     return text
 
 def generate_scene_descriptions(story: str) -> list:
