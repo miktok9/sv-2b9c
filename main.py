@@ -73,6 +73,19 @@ def generate_story_with_pollinations(topic: str) -> str:
             
             print(f"[story] Attempt {attempt + 1}/{max_retries} with Pollinations AI...")
             r = requests.get(url, params=params, timeout=60)
+            
+            # Check for server errors BEFORE raising
+            if r.status_code in [502, 503, 504]:
+                wait_time = (attempt + 1) * 10  # 10, 20, 30 seconds
+                if attempt < max_retries - 1:
+                    print(f"[story] Pollinations API error {r.status_code}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue  # Retry
+                else:
+                    print(f"[story] Pollinations API failed after {max_retries} attempts. Trying fallback...")
+                    break  # Move to fallback
+            
+            # Raise for other HTTP errors
             r.raise_for_status()
             text = r.text.strip()
             
@@ -87,16 +100,8 @@ def generate_story_with_pollinations(topic: str) -> str:
             return text
             
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code in [502, 503, 504]:
-                wait_time = (attempt + 1) * 10  # 10, 20, 30 seconds
-                if attempt < max_retries - 1:
-                    print(f"[story] Pollinations API error {e.response.status_code}. Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    print(f"[story] Pollinations API failed after {max_retries} attempts. Trying fallback...")
-            else:
-                print(f"[story] HTTP error {e.response.status_code}. Trying fallback...")
-                break
+            print(f"[story] HTTP error {e.response.status_code}. Trying fallback...")
+            break
         except Exception as e:
             print(f"[story] Error with Pollinations: {e}. Trying fallback...")
             break
