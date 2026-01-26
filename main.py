@@ -7,6 +7,10 @@ from pathlib import Path
 from urllib.parse import quote
 import requests
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ---------------- CONFIG ----------------
 
@@ -52,106 +56,41 @@ def choose_topic_for_today():
     return topics[today.toordinal() % len(topics)]
 
 def generate_story_with_pollinations(topic: str) -> str:
-    """Generate a short Swedish story about ancient women's history with fallback APIs."""
+    """Generate a short Swedish story about ancient women's history using paid Pollinations API."""
+    api_key = os.getenv("POLLINATIONS_API_KEY")
+    if not api_key:
+        raise ValueError("POLLINATIONS_API_KEY environment variable is required for paid API")
+
     system = (
-        "Du är en historiker som specialiserar sig på kvinnors historia i antika civilisationer. "
+        "Du är en historiker som specialiserar dig på kvinnors historia i antika civilisationer. "
         "Skriv en kort, intressant historia på 30 sekunder (80-130 ord) på svenska. "
         "Berätta verkliga historiska fakta, lagar, seder eller traditioner. "
         "Använd en levande och fängslande stil. Inga titlar."
     )
     prompt = f"Ämne: {topic}. Berätta ett intressant historiskt faktum."
 
+    url = f"https://gen.pollinations.ai/text/{quote(prompt)}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {
+        "model": "nova-fast",
+        "temperature": 1.0,
+        "system": system,
+        "json": False
+    }
+
     print(f"[story] Generating Swedish story for topic: {topic}")
-    
-    # Try Pollinations AI with retry logic
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            base_url = "https://text.pollinations.ai/"
-            url = base_url + quote(prompt)
-            params = {"model": "openai", "temperature": 1.0, "system": system}
-            
-            print(f"[story] Attempt {attempt + 1}/{max_retries} with Pollinations AI...")
-            r = requests.get(url, params=params, timeout=60)
-            
-            # Check for server errors BEFORE raising
-            if r.status_code in [502, 503, 504]:
-                wait_time = (attempt + 1) * 10  # 10, 20, 30 seconds
-                if attempt < max_retries - 1:
-                    print(f"[story] Pollinations API error {r.status_code}. Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue  # Retry
-                else:
-                    print(f"[story] Pollinations API failed after {max_retries} attempts. Trying fallback...")
-                    break  # Move to fallback
-            
-            # Raise for other HTTP errors
-            r.raise_for_status()
-            text = r.text.strip()
-            
-            words = text.split()
-            if len(words) > STORY_MAX_WORDS:
-                text = " ".join(words[:STORY_MAX_WORDS])
+    r = requests.get(url, headers=headers, params=params, timeout=60)
+    r.raise_for_status()
+    text = r.text.strip()
 
-            with open(STORY_FILE, "w", encoding="utf-8") as f:
-                f.write(text)
+    words = text.split()
+    if len(words) > STORY_MAX_WORDS:
+        text = " ".join(words[:STORY_MAX_WORDS])
 
-            print(f"[story] Swedish story generated ({len(text.split())} words)")
-            return text
-            
-        except requests.exceptions.HTTPError as e:
-            print(f"[story] HTTP error {e.response.status_code}. Trying fallback...")
-            break
-        except Exception as e:
-            print(f"[story] Error with Pollinations: {e}. Trying fallback...")
-            break
-    
-    # Fallback 1: Try Hugging Face Inference API (free, no API key needed for some models)
-    try:
-        print("[story] Trying Hugging Face fallback...")
-        hf_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-        hf_prompt = f"{system}\n\n{prompt}"
-        
-        r = requests.post(
-            hf_url,
-            headers={"Content-Type": "application/json"},
-            json={"inputs": hf_prompt, "parameters": {"max_new_tokens": 200, "temperature": 0.9}},
-            timeout=60
-        )
-        
-        if r.status_code == 200:
-            result = r.json()
-            if isinstance(result, list) and len(result) > 0:
-                text = result[0].get("generated_text", "").replace(hf_prompt, "").strip()
-            else:
-                text = result.get("generated_text", "").replace(hf_prompt, "").strip()
-            
-            words = text.split()
-            if len(words) > STORY_MAX_WORDS:
-                text = " ".join(words[:STORY_MAX_WORDS])
-            
-            with open(STORY_FILE, "w", encoding="utf-8") as f:
-                f.write(text)
-            
-            print(f"[story] Swedish story generated with Hugging Face ({len(text.split())} words)")
-            return text
-    except Exception as e:
-        print(f"[story] Hugging Face fallback failed: {e}")
-    
-    # Fallback 2: Use a simple template-based story generator
-    print("[story] Using template-based fallback generator...")
-    templates = [
-        f"I antikens {topic.lower()} spelade kvinnor en viktig roll. De var inte bara hustrur och mödrar, utan också konstnärer, läkare och affärskvinnor. Historiska dokument visar att kvinnor ägde egendom och drev företag. Deras bidrag till samhället var ovärderliga, även om de ofta glömdes bort i historieböckerna.",
-        f"Under antiken var {topic.lower()} fascinerande. Kvinnor hade rättigheter som varierade mellan olika kulturer. Vissa kunde ärva egendom, andra var begränsade av lagar. Men alla bidrog till sina samhällen på meningsfulla sätt. Deras historier förtjänar att berättas och ihågkommas.",
-        f"Historien om {topic.lower()} är full av starka kvinnor. De trotsade samhällets förväntningar och skapade sitt eget arv. Från konstnärer till krigare, från läkare till filosofer - kvinnor formade civilisationer. Deras mod och visdom inspirerar oss än idag.",
-    ]
-    
-    text = random.choice(templates)
-    
     with open(STORY_FILE, "w", encoding="utf-8") as f:
         f.write(text)
-    
-    print(f"[story] Template-based story generated ({len(text.split())} words)")
+
+    print(f"[story] Swedish story generated ({len(text.split())} words)")
     return text
 
 def generate_scene_descriptions(story: str) -> list:
@@ -197,22 +136,33 @@ def generate_image(scene: str, idx: int) -> Path:
     # Create unique seed for each image based on scene content + index
     seed = hash(scene + str(idx)) % 1000000
     
-    # Build detailed, high-quality prompt focusing on beautiful ancient women
+    # Build high-quality photorealistic prompt optimized for flux model
     prompt = (
-        f"stunning beautiful woman in ancient times, {scene}, "
-        f"photorealistic portrait, elegant ancient clothing, "
-        f"dramatic cinematic lighting, highly detailed face and eyes, "
-        f"historical accuracy, professional photography, "
-        f"volumetric lighting, 8k quality, masterpiece, "
-        f"beautiful composition, vibrant colors, sharp focus"
+        f"stunningly beautiful woman from ancient civilization, {scene}, "
+        f"hyper-realistic portrait, extremely detailed facial features, "
+        f"intricate traditional ancient clothing with rich textures, "
+        f"professional studio lighting, dramatic shadows and highlights, "
+        f"RAW photography, photorealistic, 8K resolution, ultra-high detail, "
+        f"sharp focus, depth of field, bokeh, cinematic composition, "
+        f"masterpiece, award-winning photography, volumetric lighting, "
+        f"hyper-detailed skin texture, realistic eyes with catchlights, "
+        f"museum quality art, historical accuracy, elegant and graceful pose, "
+        f"appropriate for all audiences, clean and tasteful"
     )
     safe_prompt = quote(prompt)
     
-    # Include seed to ensure unique image
-    url = (
-        f"https://image.pollinations.ai/prompt/{safe_prompt}"
-        f"?width={IMAGE_WIDTH}&height={IMAGE_HEIGHT}&model={IMAGE_MODEL}&seed={seed}"
-    )
+    # Using the working configuration - check if images have watermarks
+    url = f"https://image.pollinations.ai/prompt/{safe_prompt}"
+    headers = {"Authorization": f"Bearer {os.getenv('POLLINATIONS_API_KEY')}"}
+    params = {
+        "width": IMAGE_WIDTH,
+        "height": IMAGE_HEIGHT,
+        "model": "flux",  # Use flux model
+        "seed": seed,
+        "safe": True,  # Enable strict content filtering to prevent NSFW (boolean)
+        "nologo": True,  # Explicitly request no watermarks
+        "negative_prompt": "worst quality, blurry, watermark, logo, text, signature, branded content"
+    }
 
     out = IMAGES_DIR / f"scene_{idx:02d}.jpg"
     print(f"[image] Generating image {idx+1}/{NUM_IMAGES}: {scene[:50]}...")
@@ -222,7 +172,7 @@ def generate_image(scene: str, idx: int) -> Path:
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            r = requests.get(url, timeout=180)
+            r = requests.get(url, headers=headers, params=params, timeout=180)
             r.raise_for_status()
             out.write_bytes(r.content)
             time.sleep(2)  # Small delay between successful requests
