@@ -8,6 +8,8 @@ on:
 jobs:
   generate-and-upload:
     runs-on: ubuntu-latest
+    env:
+      POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
     
     steps:
     - name: Checkout repo
@@ -36,10 +38,14 @@ jobs:
         pip install -r requirements.txt
 
     - name: Check and generate topics if needed
+      env:
+        POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
       run: |
         python generate_topics.py
 
     - name: Generate daily short video
+      env:
+        POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
       run: |
         python main.py
 
