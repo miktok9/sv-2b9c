@@ -7,34 +7,56 @@ from urllib.parse import quote
 from pathlib import Path
 import time
 
-def generate_french_topics_batch(batch_num, count=100):
-    """Generate a batch of Portuguese topics."""
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+def generate_swedish_topics_batch(batch_num, count=100):
+    """Generate a batch of Swedish topics using paid Pollinations API."""
     
-    base_url = "https://text.pollinations.ai/"
-    
-    # Simpler system prompt
+    api_key = os.getenv("POLLINATIONS_API_KEY")
+    if not api_key:
+        raise ValueError("POLLINATIONS_API_KEY environment variable is required")
+
     system = (
-        "You are a historian specialized in ancient women's history. "
-        f"Create {count} unique topics in Portuguese about women in ancient civilizations. "
-        "Each topic should be 5-10 words, interesting and educational. "
-        "Cover: laws, customs, famous women, professions, religion, culture, art. "
-        "Output ONLY the topics, one per line, no numbers or bullets."
+        "Du är en historiker som specialiserar dig på kvinnors historia i antika civilisationer. "
+        f"Skapa {count} unika ämnen på svenska. "
+        "Varje ämne ska vara kort (5-10 ord), intressant och utbildande. "
+        "Ämnena ska täcka: lagar, sedvänjor, kända kvinnor, yrken, religion, kultur, konst. "
+        "SKRIV BARA ämnena, en per rad, utan nummer eller tecken."
     )
     
-    prompt = f"Generate {count} unique Portuguese topics about women in ancient civilizations"
+    prompt = f"Skapa {count} unika ämnen om kvinnor i antika civilisationer"
     
-    url = base_url + quote(prompt)
-    params = {"model": "openai", "temperature": 0.9, "system": system}
+    url = "https://gen.pollinations.ai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "openai",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.9
+    }
     
-    print(f"[batch {batch_num}] Generating {count} Portuguese topics...")
+    print(f"[batch {batch_num}] Generating {count} Swedish topics...")
     
     try:
-        r = requests.get(url, params=params, timeout=120)
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
         r.raise_for_status()
         
+        data = r.json()
+        if "choices" in data and len(data["choices"]) > 0:
+            text = data["choices"][0]["message"]["content"].strip()
+        else:
+            text = r.text.strip()
+
         # Parse topics
         topics = []
-        for line in r.text.strip().split('\n'):
+        for line in text.split('\n'):
             cleaned = line.strip()
             # Remove common prefixes
             for prefix in ['- ', '* ', '• ', '→ ', '> ']:
@@ -55,13 +77,13 @@ def generate_french_topics_batch(batch_num, count=100):
         return []
 
 def main():
-    """Generate 600 Portuguese topics in batches."""
+    """Generate 600 Swedish topics in batches."""
     
     all_topics = []
     batches = 6  # 6 batches of 100 = 600 topics
     
     for i in range(batches):
-        topics = generate_french_topics_batch(i+1, 100)
+        topics = generate_swedish_topics_batch(i+1, 100)
         all_topics.extend(topics)
         
         print(f"[progress] Total topics so far: {len(all_topics)}")
@@ -77,7 +99,7 @@ def main():
         for topic in all_topics:
             f.write(f"{topic}\n")
     
-    print(f"\n[done] Generated {len(all_topics)} Portuguese topics!")
+    print(f"\n[done] Generated {len(all_topics)} Swedish topics!")
     print(f"[done] Saved to {topics_file}")
 
 if __name__ == '__main__':

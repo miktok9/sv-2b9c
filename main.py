@@ -50,27 +50,29 @@ def ensure_dirs():
         f.unlink()
 
 def choose_topic_for_today():
-    """Choose today's topic and mark it as used."""
+    """Choose today's topic, mark it as used and rotation it."""
     topics_file = Path(TOPICS_FILE)
     used_topics_file = Path("used_topics.txt")
     
     # Read available topics
+    if not topics_file.exists():
+        raise Exception("topics.txt not found! Run generate_topics.py first.")
+
     with open(topics_file, "r", encoding="utf-8") as f:
         topics = [line.strip() for line in f if line.strip()]
     
     if not topics:
-        raise Exception("No topics available! Run generate_topics.py first.")
+        raise Exception("No topics available in topics.txt! Run generate_topics.py first.")
     
-    # Choose topic based on date (deterministic)
-    today = datetime.date.today()
-    selected_topic = topics[today.toordinal() % len(topics)]
+    # Pick the top topic for simple rotation
+    selected_topic = topics[0]
     
     # Mark topic as used
     with open(used_topics_file, "a", encoding="utf-8") as f:
         f.write(f"{selected_topic}\n")
     
-    # Remove used topic from topics.txt
-    remaining_topics = [t for t in topics if t != selected_topic]
+    # Remove selected topic and save back
+    remaining_topics = topics[1:]
     with open(topics_file, "w", encoding="utf-8") as f:
         for topic in remaining_topics:
             f.write(f"{topic}\n")
@@ -81,7 +83,7 @@ def choose_topic_for_today():
     return selected_topic
 
 def generate_story_with_pollinations(topic: str) -> str:
-    """Generate a short Swedish story about ancient women's history using paid Pollinations API."""
+    """Generate a short Swedish story using paid Pollinations AI standard chat endpoint."""
     api_key = os.getenv("POLLINATIONS_API_KEY")
     if not api_key:
         raise ValueError("POLLINATIONS_API_KEY environment variable is required for paid API")
@@ -94,19 +96,31 @@ def generate_story_with_pollinations(topic: str) -> str:
     )
     prompt = f"Ämne: {topic}. Berätta ett intressant historiskt faktum."
 
-    url = f"https://gen.pollinations.ai/text/{quote(prompt)}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    params = {
-        "model": "nova-fast",
-        "temperature": 1.0,
-        "system": system,
-        "json": False
+    url = "https://gen.pollinations.ai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "openai",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 1.0
     }
 
     print(f"[story] Generating Swedish story for topic: {topic}")
-    r = requests.get(url, headers=headers, params=params, timeout=60)
+    r = requests.post(url, headers=headers, json=payload, timeout=60)
     r.raise_for_status()
-    text = r.text.strip()
+    
+    # Parse standard chat completions response
+    data = r.json()
+    if "choices" in data and len(data["choices"]) > 0:
+        text = data["choices"][0]["message"]["content"].strip()
+    else:
+        # Fallback if structure is different
+        text = r.text.strip()
 
     words = text.split()
     if len(words) > STORY_MAX_WORDS:
@@ -177,12 +191,12 @@ def generate_image(scene: str, idx: int) -> Path:
     safe_prompt = quote(prompt)
     
     # Using the working configuration - check if images have watermarks
-    url = f"https://image.pollinations.ai/prompt/{safe_prompt}"
+    url = f"https://gen.pollinations.ai/image/{safe_prompt}"
     headers = {"Authorization": f"Bearer {os.getenv('POLLINATIONS_API_KEY')}"}
     params = {
         "width": IMAGE_WIDTH,
         "height": IMAGE_HEIGHT,
-        "model": "flux",  # Use flux model
+        "model": IMAGE_MODEL,  # Back to flux as requested
         "seed": seed,
         "safe": True,  # Enable strict content filtering to prevent NSFW (boolean)
         "nologo": True,  # Explicitly request no watermarks
