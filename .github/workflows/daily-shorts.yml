@@ -88,10 +88,3 @@ jobs:
         # Only commit if there are changes
         git diff --quiet && git diff --staged --quiet || (git commit -m "Update topic rotation [skip ci]" && git push)
 
-    - name: Upload video artifact (backup)
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: final-video-${{ github.run_number }}
-        path: output/final_video.mp4
-        retention-days: 7
