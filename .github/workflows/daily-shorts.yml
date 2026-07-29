@@ -45,7 +45,10 @@ jobs:
       env:
         POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
       run: |
-        $env:GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}\n        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}\n      run: |\n        python main.py
+        GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+      run: |
+        python main.py
 
     - name: Upload to all platforms
       env:
