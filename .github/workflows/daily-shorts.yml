@@ -64,7 +64,21 @@ jobs:
         FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
         FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-      run: |
+
+        # YouTube
+        YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+        YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+        YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        # Instagram (optional)
+        IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        # TikTok (optional)
+        TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+        # Facebook (optional)
+        FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+        POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}      run: |
         python upload_all_platforms.py
 
     - name: Commit and push changes
