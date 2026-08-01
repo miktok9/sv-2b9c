@@ -67,4 +67,4 @@ def upload_to_tiktok(video_file, title, description):
     
     print(f"[tiktok] ✅ Uploaded! Publish ID: {publish_id}")
     
-    return {'id': publish_id}
+    {'id': publish_id, 'platform': 'tiktok', 'status': 'success', 'link': f"https://www.tiktok.com/@{os.getenv('TIKTOK_USERNAME', '')}/video/{publish_id}"}
