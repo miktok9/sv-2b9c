@@ -51,37 +51,37 @@ def ensure_dirs():
         f.unlink()
 
 def choose_topic_for_today():
-    """Choose today's topic, mark it as used and rotation it."""
-    topics_file = Path(TOPICS_FILE)
-    used_topics_file = Path("used_topics.txt")
-    
-    # Read available topics
-    if not topics_file.exists():
-        raise Exception("topics.txt not found! Run generate_topics.py first.")
-
-    with open(topics_file, "r", encoding="utf-8") as f:
-        topics = [line.strip() for line in f if line.strip()]
-    
-    if not topics:
-        raise Exception("No topics available in topics.txt! Run generate_topics.py first.")
-    
-    # Pick the top topic for simple rotation
-    selected_topic = topics[0]
-    
-    # Mark topic as used
-    with open(used_topics_file, "a", encoding="utf-8") as f:
-        f.write(f"{selected_topic}\n")
-    
-    # Remove selected topic and save back
-    remaining_topics = topics[1:]
-    with open(topics_file, "w", encoding="utf-8") as f:
-        for topic in remaining_topics:
-            f.write(f"{topic}\n")
-    
-    print(f"[topics] Selected: {selected_topic}")
-    print(f"[topics] Remaining topics: {len(remaining_topics)}")
-    
+    """Pick a topic that has NOT been used yet (history persisted via git commit)."""
+    import os, datetime, random
+    TOPICS_FILE = "topics.txt"
+    if not os.path.exists(TOPICS_FILE):
+        return "Default Topic"
+    with open(TOPICS_FILE, "r", encoding="utf-8") as f:
+        all_topics = [line.strip() for line in f if line.strip()]
+    if not all_topics:
+        return "Default Topic"
+    used_file = "used_topics.txt"
+    used = set()
+    if os.path.exists(used_file):
+        with open(used_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                topic = line.split(":", 1)[1].strip() if ":" in line else line
+                if topic:
+                    used.add(topic)
+    remaining = [t for t in all_topics if t not in used]
+    if not remaining:
+        remaining = list(all_topics)
+        used = set()
+        open(used_file, "w", encoding="utf-8").close()
+    selected_topic = random.choice(remaining)
+    with open(used_file, "a", encoding="utf-8") as f:
+        f.write(f"{datetime.date.today()}: {selected_topic}\n")
+    print(f"[topics] Selected: {selected_topic} (pool={len(all_topics)}, used={len(used)})")
     return selected_topic
+
 
 def generate_story_with_pollinations(topic: str) -> str:
     """Generate story using Pollinations AI."""
